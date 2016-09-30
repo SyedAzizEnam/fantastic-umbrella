@@ -58,7 +58,7 @@ def api_relevancyscore():
 
     if request.method == 'GET':
         if 'summary' not in request.args:
-            return incorrect_url('/api/getRelevancyScore/v1.0?title=title text&summary=summary text')
+            return incorrect_url("/api/getRelevancyScore/v1.0?title=title text&summary=summary text")
         data = request.args
 
     if request.method == 'POST':
