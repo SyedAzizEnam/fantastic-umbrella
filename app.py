@@ -31,7 +31,7 @@ def incorrect_type(error=None):
     return resp
 
 @app.errorhandler(404)
-def incorrect_use(parameter):
+def required_param(parameter):
     message = {
             'status': 404,
             'message': 'Required JSON parameter: '+parameter
@@ -48,7 +48,7 @@ def api_relevancyscore():
     if request.headers['Content-Type'] == 'application/json':
         data = request.json
         if 'summary' not in data:
-            return incorrect_use('summary')
+            return required_param('summary')
     else:
         return incorrect_type()
 
@@ -63,7 +63,7 @@ def relevancyScore(string):
     tfidf_vect = tfidf_transformer.transform(bagOfWords)
 
     output = {}
-    classification = {1.0:'Credit Relevant', 0.0:'Not Creadit Relevant'}
+    classification = {1.0:'Credit Relevant', 0.0:'Not Credit Relevant'}
     output['prediction'] = classification[clf.predict(tfidf_vect)[0]]
     output['score'] = clf.decision_function(tfidf_vect)[0]
 
