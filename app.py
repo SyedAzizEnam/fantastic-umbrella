@@ -41,16 +41,33 @@ def required_param(parameter):
 
     return resp
 
+@app.errorhandler(404)
+def incorrect_url(url):
+    message = {
+            'status': 404,
+            'message': 'Correct Usage: '+url
+    }
+    resp = jsonify(message)
+    resp.status_code = 404
 
-@app.route('/api/getRelevancyScore/v1.0', methods=['POST'])
+    return resp
+
+
+@app.route('/api/getRelevancyScore/v1.0', methods=['GET','POST'])
 def api_relevancyscore():
 
-    if request.headers['Content-Type'] == 'application/json':
-        data = request.json
-        if 'summary' not in data:
-            return required_param('summary')
-    else:
-        return incorrect_type()
+    if request.method == 'GET':
+        if 'summary' not in request.args:
+            return incorrect_url('/api/getRelevancyScore/v1.0?title=title text&summary=summary text')
+        data = request.args
+
+    if request.method == 'POST':
+        if request.headers['Content-Type'] == 'application/json':
+            data = request.json
+            if 'summary' not in data:
+                return required_param('summary')
+        else:
+            return incorrect_type()
 
     output = relevancyScore(data['summary'])
 
