@@ -73,6 +73,22 @@ def api_relevancyscore():
 
     return jsonify(output)
 
+def scoreNormalizer(score):
+
+    if score>0:
+        notCR_score = 1
+        if score<0.75:
+            CR_score = 2
+        else:
+            CR_score = 3
+    else:
+        CR_score = 1
+        if score > -0.75:
+            notCR_score = 2
+        else:
+            notCR_score = 3
+
+    return [CR_score, notCR_score]
 
 def relevancyScore(string):
 
@@ -83,6 +99,7 @@ def relevancyScore(string):
     classification = {1.0:'Credit Relevant', 0.0:'Not Credit Relevant'}
     output['prediction'] = classification[clf.predict(tfidf_vect)[0]]
     output['score'] = clf.decision_function(tfidf_vect)[0]
+    output['Credit Relevancy Score'], output['Credit Irrelevancy Score'] = scoreNormalizer(output['score'])
 
     return output
 
