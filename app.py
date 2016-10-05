@@ -3,27 +3,49 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 import pandas as pd
 import cPickle as pickle
 import time
+import dill
 
 from flask import Flask, jsonify, request, Response
 
 app = Flask(__name__)
 
-with open('selected_vocab', 'rb') as f:
-    selected_vocab = pickle.load(f)
+api_methods = ['creditRelevancy', 'companyRelevancy']
 
-with open('SVM_rbf_9_28_2016', 'rb') as f:
-    clf = pickle.load(f)
+classifiers,count_vectorizers,tfidf_transformers,scorers = dict(), dict(), dict(), dict()
 
-with open('tfidf_transformer', 'rb') as f:
-    tfidf_transformer = pickle.load(f)
+for method in api_methods:
+    with open(method+'/selected_vocab', 'rb') as f:
+        vocab = pickle.load(f)
+        count_vectorizers[method] = CountVectorizer(ngram_range=(1,2), stop_words='english', vocabulary=vocab)
 
-count_vect = CountVectorizer(ngram_range=(1,2), stop_words='english', vocabulary=selected_vocab)
+    with open(method+'/model', 'rb') as f:
+        classifiers[method] = pickle.load(f)
+
+    with open(method+'/tfidf_transformer', 'rb') as f:
+        tfidf_transformers[method] = pickle.load(f)
+
+    try:
+        with open(method+'/scorer', 'rb') as f:
+            scorers[method] = dill.load(f)
+    except:
+        continue
 
 @app.errorhandler(404)
 def incorrect_type(error=None):
     message = {
             'status': 404,
             'message': 'Required Content-Type: application/json'
+    }
+    resp = jsonify(message)
+    resp.status_code = 404
+
+    return resp
+
+@app.errorhandler(404)
+def methodNotFound(method):
+    message = {
+            'status': 404,
+            'message': 'Method '+method+' not found'
     }
     resp = jsonify(message)
     resp.status_code = 404
@@ -53,53 +75,45 @@ def incorrect_url(url):
     return resp
 
 
-@app.route('/api/getRelevancyScore/v1.0', methods=['GET','POST'])
-def api_relevancyscore():
+@app.route('/api/<string:method>/v1.0', methods=['GET','POST'])
+def api_relevancyscore(method):
+
+    if method not in api_methods:
+        return methodNotFound(method)
 
     if request.method == 'GET':
-        if 'summary' not in request.args:
-            return incorrect_url("/api/getRelevancyScore/v1.0?title=title text&summary=summary text")
+        if 'body' not in request.args:
+            return incorrect_url('/api/<method>/v1.0?title=title text&body=body text')
         data = request.args
 
     if request.method == 'POST':
         if request.headers['Content-Type'] == 'application/json':
             data = request.json
-            if 'summary' not in data:
-                return required_param('summary')
+            if 'body' not in data:
+                return required_param('body')
         else:
             return incorrect_type()
 
-    output = relevancyScore(data['summary'])
+    output = relevancyScore(method, data['body'])
 
     return jsonify(output)
 
-def scoreNormalizer(score):
+def relevancyScore(method, string):
 
-    if score>0:
-        notCR_score = 1
-        if score<0.75:
-            CR_score = 2
-        else:
-            CR_score = 3
-    else:
-        CR_score = 1
-        if score > -0.75:
-            notCR_score = 2
-        else:
-            notCR_score = 3
-
-    return [CR_score, notCR_score]
-
-def relevancyScore(string):
-
-    bagOfWords = count_vect.transform([string])
-    tfidf_vect = tfidf_transformer.transform(bagOfWords)
+    bagOfWords = count_vectorizers[method].transform([string])
+    tfidf_vect = tfidf_transformers[method].transform(bagOfWords)
 
     output = {}
-    classification = {1.0:'Credit Relevant', 0.0:'Not Credit Relevant'}
-    output['prediction'] = classification[clf.predict(tfidf_vect)[0]]
-    output['score'] = clf.decision_function(tfidf_vect)[0]
-    output['Credit Relevancy Score'], output['Credit Irrelevancy Score'] = scoreNormalizer(output['score'])
+    classification = {1.0:'Relevant', 0.0:'Not Relevant'}
+    output['prediction'] = classification[classifiers[method].predict(tfidf_vect)[0]]
+
+    try:
+        output['score'] = classifiers[method].predict_proba(tfidf_vect)[:,1][0]
+    except:
+        output['score'] = classifiers[method].decision_function(tfidf_vect)[0]
+
+    if method in scorers:
+        output['relevancy Score'], output['irrelevancy Score'] = scorers[method](output['score'])
 
     return output
 
