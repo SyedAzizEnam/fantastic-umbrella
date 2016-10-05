@@ -1,3 +1,8 @@
+"""
+To access server use:
+$ ssh -l [username] env9ds4-l.ca.firstrain.net
+"""
+
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 import pandas as pd
@@ -64,10 +69,10 @@ def required_param(parameter):
     return resp
 
 @app.errorhandler(404)
-def incorrect_url(url):
+def incorrect_url(error=None):
     message = {
             'status': 404,
-            'message': 'Correct Usage: '+url
+            'message': 'Correct Usage: /api/<method>/v1.0?title=title text&body=body text'
     }
     resp = jsonify(message)
     resp.status_code = 404
@@ -83,7 +88,7 @@ def api_relevancyscore(method):
 
     if request.method == 'GET':
         if 'body' not in request.args:
-            return incorrect_url('/api/<method>/v1.0?title=title text&body=body text')
+            return incorrect_url()
         data = request.args
 
     if request.method == 'POST':
