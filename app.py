@@ -14,7 +14,7 @@ from flask import Flask, jsonify, request, Response
 
 app = Flask(__name__)
 
-api_methods = ['creditRelevancy', 'companyRelevancy']
+api_methods = ['creditRelevancy', 'companyRelevancy', 'sourceDetector']
 
 classifiers,count_vectorizers,tfidf_transformers,scorers = dict(), dict(), dict(), dict()
 
@@ -109,7 +109,7 @@ def relevancyScore(method, string):
     tfidf_vect = tfidf_transformers[method].transform(bagOfWords)
 
     output = {}
-    classification = {1.0:'Relevant', 0.0:'Not Relevant'}
+    classification = {1.0:'Positive', 0.0:'Negative'}
     output['prediction'] = classification[classifiers[method].predict(tfidf_vect)[0]]
 
     try:
