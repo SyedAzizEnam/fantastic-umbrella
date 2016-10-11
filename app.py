@@ -6,6 +6,9 @@ $ ssh -l [username] env9ds4-l.ca.firstrain.net
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.feature_selection import chi2, SelectPercentile
 from sklearn.svm import LinearSVC, SVC
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import SGDClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.cross_validation import train_test_split, cross_val_score
 from sklearn import metrics
 
@@ -102,7 +105,10 @@ def api_trainmodel():
 
     numSamples = len(data['features'])
 
-    if numSamples > 5000:
+    if 'model' in data:
+        classifier = models[data['model']]
+
+    elif numSamples > 5000:
         classifier = LinearSVC(penalty='l1', dual=False)
     else:
         classifier = SVC(C=100, cache_size=500, class_weight=None, coef0=0.0,
@@ -127,9 +133,9 @@ def relevancyScore(method, string):
     output['prediction'] = classification[classifiers[method].predict(tfidf_vect)[0]]
 
     try:
-        output['score'] = classifiers[method].predict_proba(tfidf_vect)[:,1][0]
-    except:
         output['score'] = classifiers[method].decision_function(tfidf_vect)[0]
+    except:
+        output['score'] = classifiers[method].predict_proba(tfidf_vect)[:,1][0]
 
     if method in scorers:
         output['relevancy Score'], output['irrelevancy Score'] = scorers[method](output['score'])
@@ -157,9 +163,8 @@ def loadModels(api_methods):
     classifiers,count_vectorizers,tfidf_transformers,scorers = dict(), dict(), dict(), dict()
 
     for method in api_methods:
-        with open(method+'/selected_vocab', 'rb') as f:
-            vocab = pickle.load(f)
-            count_vectorizers[method] = CountVectorizer(ngram_range=(1,2), stop_words='english', vocabulary=vocab)
+        with open(method+'/count_vect', 'rb') as f:
+            count_vectorizers[method] = pickle.load(f)
 
         with open(method+'/model', 'rb') as f:
             classifiers[method] = pickle.load(f)
@@ -208,7 +213,17 @@ def trainModel(data, classifier):
     output['sample accuracies'] = cv_score.tolist()
     output['text'] = data['features']
     output['predictions'] = clf.predict(features).tolist()
-    output['scores'] = clf.decision_function(features).tolist()
+
+    try:
+        output['scores'] = clf.predict_proba(features).tolist()
+    except:
+        output['scores'] = clf.decision_function(features).tolist()
+
+    try:
+        output['feature coef'] = clf.coef_.tolist()
+    except:
+        output['feature coef'] = 'Not Available'
+
     output['PR report'] = metrics.classification_report(y_test, y_hat, target_names=['Not Relevant', 'Relevant'])
     output['true -: [marked - , marked +]'], output['true +: [marked - , marked +]'] = metrics.confusion_matrix(y_test, y_hat).tolist()
 
@@ -234,7 +249,11 @@ def feature_selection(text, target):
 
 if __name__ == '__main__':
 
-    api_methods = ['creditRelevancy', 'companyRelevancy', 'sourceDetector', 'publisherClassifier']
+    api_methods = ['creditRelevancy']
+
+    models = {'naive bayes': MultinomialNB(),
+              'logistic regression':SGDClassifier(loss='log', penalty='l2',alpha=1e-3, n_iter=5,random_state=42),
+              'random forest':RandomForestClassifier(n_estimators=10)}
 
     classifiers,count_vectorizers,tfidf_transformers,scorers = loadModels(api_methods)
 
