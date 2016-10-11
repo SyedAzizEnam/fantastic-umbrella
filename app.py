@@ -228,7 +228,7 @@ def trainModel(data, classifier):
 
 if __name__ == '__main__':
 
-    api_methods = ['creditRelevancy']
+    api_methods = ['creditRelevancy','publisherClassifier']
 
     models = {'naive bayes': MultinomialNB(),
               'logistic regression':SGDClassifier(loss='log', penalty='l2',alpha=1e-3, n_iter=5,random_state=42),
