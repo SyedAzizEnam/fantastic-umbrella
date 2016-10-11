@@ -115,11 +115,11 @@ def api_trainmodel():
               decision_function_shape=None, degree=3, gamma=0.01, kernel='rbf',
               max_iter=-1, probability=False, random_state=None, shrinking=True,tol=0.001, verbose=False)
 
-    selected_vocab, tfidf_transformer, clf, output = trainModel(data, classifier)
+    count_vect, tfidf_transformer, clf, output = trainModel(data, classifier)
 
     if 'name' in data:
         print "Saving Model....."
-        saveModel(data['name'], selected_vocab, tfidf_transformer, clf)
+        saveModel(data['name'], count_vect, tfidf_transformer, clf)
 
     return jsonify(output)
 
@@ -142,15 +142,15 @@ def relevancyScore(method, string):
 
     return output
 
-def saveModel(method,selected_vocab, tfidf_transformer, clf):
+def saveModel(method,count_vect, tfidf_transformer, clf):
 
     method = str(method)
 
     if not os.path.exists(method):
         os.makedirs(method)
 
-    with open(method+'/selected_vocab', 'wb') as f:
-        pickle.dump(selected_vocab, f)
+    with open(method+'/count_vect', 'wb') as f:
+        pickle.dump(count_vect, f)
 
     with open(method+'/model', 'wb') as f:
         pickle.dump(clf, f)
@@ -185,10 +185,8 @@ def trainModel(data, classifier):
     target = np.array(data['target'])
     text = data['features']
 
-    print "Feature Selection....."
-    selected_vocab = feature_selection(text, target)
-
-    count_vect = CountVectorizer(ngram_range=(1,2), stop_words='english', decode_error='replace', vocabulary=selected_vocab)
+    print "Feature Transformation....."
+    count_vect = CountVectorizer(ngram_range=(1,2), stop_words='english', decode_error='replace').fit(text)
     BOW_data = count_vect.transform(text)
     tfidf_transformer = TfidfTransformer(use_idf=True).fit(BOW_data)
     features = tfidf_transformer.transform(BOW_data)
@@ -203,49 +201,30 @@ def trainModel(data, classifier):
     y_hat = clf.predict(X_test)
 
     try:
-        y_scores = clf.predict_proba(X_test)[:,1]
-    except:
         y_scores = clf.decision_function(X_test)
+    except:
+        y_scores = clf.predict_proba(X_test)[:,1]
 
     output = dict()
 
     output['average accuracy'] = np.mean(cv_score)
     output['sample accuracies'] = cv_score.tolist()
-    output['text'] = data['features']
     output['predictions'] = clf.predict(features).tolist()
 
     try:
-        output['scores'] = clf.predict_proba(features).tolist()
-    except:
         output['scores'] = clf.decision_function(features).tolist()
+    except:
+        output['scores'] = clf.predict_proba(features).tolist()
 
     try:
         output['feature coef'] = clf.coef_.tolist()
     except:
         output['feature coef'] = 'Not Available'
 
-    output['PR report'] = metrics.classification_report(y_test, y_hat, target_names=['Not Relevant', 'Relevant'])
-    output['true -: [marked - , marked +]'], output['true +: [marked - , marked +]'] = metrics.confusion_matrix(y_test, y_hat).tolist()
+    output['Test:PR report'] = metrics.classification_report(y_test, y_hat, target_names=['Not Relevant', 'Relevant'])
+    output['Test:true -: [marked - , marked +]'], output['Test:true +: [marked - , marked +]'] = metrics.confusion_matrix(y_test, y_hat).tolist()
 
-    return selected_vocab, tfidf_transformer, clf, output
-
-def feature_selection(text, target):
-
-    count_vect = CountVectorizer(ngram_range=(1,2), stop_words='english', decode_error='replace')
-    BOW_data = count_vect.fit_transform(text)
-    vocab_lookup = sorted(count_vect.vocabulary_.items(), key=operator.itemgetter(1))
-
-    tfidf_transformer = TfidfTransformer(use_idf=True)
-    tfidf = tfidf_transformer.fit_transform(BOW_data)
-
-    features = tfidf
-    features = SelectPercentile(chi2, percentile=50).fit_transform(features, target)
-
-    feature_scores = chi2(tfidf, target)[0]
-    index = np.argsort(-feature_scores)[0:int(math.floor(len(feature_scores)/2))]
-    selected_vocab = dict([(vocab_lookup[index[i]][0],i) for i in range(len(index))])
-
-    return selected_vocab
+    return count_vect, tfidf_transformer, clf, output
 
 if __name__ == '__main__':
 
